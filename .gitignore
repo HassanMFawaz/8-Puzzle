@@ -1,0 +1,24 @@
+# Ignore compiled object files
+*.o
+
+# Ignore the executable file named 'main'
+main
+
+# Ignore other compiled binary files
+*.exe
+*.out
+*.a
+*.so
+*.dll
+*.lib
+
+# Ignore build directory if used
+/build/
+
+# Ignore CMake files if used
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Ignore Visual Studio Code settings
+.vscode/
