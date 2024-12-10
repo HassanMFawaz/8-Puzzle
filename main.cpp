@@ -3,6 +3,7 @@
 #include <vector>
 #include <queue>
 #include <cmath>
+#include <chrono>
 
 void waitForSeconds(int seconds)
 {
@@ -141,6 +142,7 @@ std::vector<Node *> getNextState(Node *state)
 int main()
 {
 
+auto start = std::chrono::high_resolution_clock::now();
     int startLoop = 0;
     int puzzleChoice = 1;
     int userPuzzle = 0;
@@ -240,7 +242,10 @@ int main()
     for (Node* node: allNodes) {
         delete node;
     }
-    
+     auto end = std::chrono::high_resolution_clock::now();
+     std::chrono::duration<double> elapsed = end - start;
+     std::cout << "Execution time: " << elapsed.count() << " seconds" << std::endl;
+
     return 0;
 }
 
