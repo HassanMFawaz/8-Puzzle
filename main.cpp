@@ -4,18 +4,9 @@
 #include <queue>
 #include <cmath>
 #include <chrono>
+#include <thread>
+#include <mutex>
 
-void waitForSeconds(int seconds)
-{
-    // Get the current clock time
-    clock_t startTime = clock();
-
-    // Loop until the specified time has passed
-    while (static_cast<double>(clock() - startTime) / CLOCKS_PER_SEC < seconds)
-    {
-        // Do nothing, just wait
-    }
-}
 
 std::vector<std::vector<int>> veryEasy = {
     {1, 2, 3},
@@ -47,7 +38,7 @@ std::vector<std::vector<int>> impossible = {
     {8, 7, 0}
 };
 
-// Don't delete, this struct is needed for std::priority queue third argument
+
 struct CompareCost
 {
     // operator overload
@@ -63,14 +54,15 @@ std::vector<std::vector<int>> goalState = {
     {7, 8, 0}};
 
 int algorithmChoice = 1;
-// vector to store all created nodes, useful for deletion.
+
+
 std::vector<Node*> allNodes;
 bool isMatching(std::vector<std::vector<int>> v1, std::vector<std::vector<int>> v2);
 void search(Node *curr);
-// Hassan, given curr state, calculate cost to goal state using algorithmChoice selected by user
+
 void calculateCost(Node *state);
 
-// Salma, given curr state, generate the legal next states, use calculate cost for them, store in their Nodes
+
 std::vector<int> emptyTile(Node *state);
 
 // Get empty tile position
@@ -94,58 +86,93 @@ std::vector<Node *> getNextState(Node *state)
 {
     std::vector<Node *> nextStates;
     std::vector<std::vector<int>> curState = state->getState();
-    std::vector<std::vector<int>> newState;
     std::vector<int> position = emptyTile(state);
     int xPos = position[0]; // Vertical position
     int yPos = position[1]; // Horizontal position
 
+    std::mutex nextStatesMutex; // Mutex for thread-safe access to nextStates
+    std::vector<std::thread> threads;
+
     // Down
-    if (xPos < curState.size() - 1)
-    {
-        newState = curState;
-        std::swap(newState[xPos][yPos], newState[xPos + 1][yPos]);
-        Node *newNode = new Node(state, state->pcost, state->hcost, state->cost, "Down", newState);
-        calculateCost(newNode);
-        nextStates.push_back(newNode);
-    }
+    threads.push_back(std::thread([&, curState, state]() {
+        try {
+            if (xPos < curState.size() - 1) {
+                auto threadLocalState = curState;
+                std::swap(threadLocalState[xPos][yPos], threadLocalState[xPos + 1][yPos]);
+                Node *newNode = new Node(state, state->pcost, state->hcost, state->cost, "Down", threadLocalState);
+                calculateCost(newNode);
+                std::lock_guard<std::mutex> lock(nextStatesMutex);
+                nextStates.push_back(newNode);
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Exception in Down thread: " << e.what() << std::endl;
+        }
+    }));
+
     // Up
-    if (xPos > 0)
-    {
-        newState = curState;
-        std::swap(newState[xPos][yPos], newState[xPos - 1][yPos]);
-         Node *newNode = new Node(state, state->pcost, state->hcost, state->cost, "Down", newState);
-        calculateCost(newNode);
-        nextStates.push_back(newNode);
-    }
+    threads.push_back(std::thread([&, curState, state]() {
+        try {
+            if (xPos > 0) {
+                auto threadLocalState = curState;
+                std::swap(threadLocalState[xPos][yPos], threadLocalState[xPos - 1][yPos]);
+                Node *newNode = new Node(state, state->pcost, state->hcost, state->cost, "Up", threadLocalState);
+                calculateCost(newNode);
+                std::lock_guard<std::mutex> lock(nextStatesMutex);
+                nextStates.push_back(newNode);
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Exception in Up thread: " << e.what() << std::endl;
+        }
+    }));
+
     // Right
-    if (yPos < curState[xPos].size() - 1)
-    {
-        newState = curState;
-        std::swap(newState[xPos][yPos], newState[xPos][yPos + 1]);
-         Node *newNode = new Node(state, state->pcost, state->hcost, state->cost, "Down", newState);
-        calculateCost(newNode);
-        nextStates.push_back(newNode);
-    }
+    threads.push_back(std::thread([&, curState, state]() {
+        try {
+            if (yPos < curState[xPos].size() - 1) {
+                auto threadLocalState = curState;
+                std::swap(threadLocalState[xPos][yPos], threadLocalState[xPos][yPos + 1]);
+                Node *newNode = new Node(state, state->pcost, state->hcost, state->cost, "Right", threadLocalState);
+                calculateCost(newNode);
+                std::lock_guard<std::mutex> lock(nextStatesMutex);
+                nextStates.push_back(newNode);
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Exception in Right thread: " << e.what() << std::endl;
+        }
+    }));
+
     // Left
-    if (yPos > 0)
-    {
-        newState = curState;
-        std::swap(newState[xPos][yPos], newState[xPos][yPos - 1]);
-        Node *newNode = new Node(state, state->pcost, state->hcost, state->cost, "Down", newState);
-        calculateCost(newNode);
-        nextStates.push_back(newNode);
+    threads.push_back(std::thread([&, curState, state]() {
+        try {
+            if (yPos > 0) {
+                auto threadLocalState = curState;
+                std::swap(threadLocalState[xPos][yPos], threadLocalState[xPos][yPos - 1]);
+                Node *newNode = new Node(state, state->pcost, state->hcost, state->cost, "Left", threadLocalState);
+                calculateCost(newNode);
+                std::lock_guard<std::mutex> lock(nextStatesMutex);
+                nextStates.push_back(newNode);
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Exception in Left thread: " << e.what() << std::endl;
+        }
+    }));
+
+    // Join all threads
+    for (auto &t : threads) {
+        if (t.joinable())
+            t.join();
     }
+
     allNodes.insert(allNodes.end(), nextStates.begin(), nextStates.end());
     return nextStates;
 }
 
 int main()
 {
-
-auto start = std::chrono::high_resolution_clock::now();
     int startLoop = 0;
     int puzzleChoice = 1;
     int userPuzzle = 0;
+    int numThreads = 1;
     std::vector<std::vector<int>> state =
     {
         {1, 2, 3},
@@ -226,19 +253,21 @@ auto start = std::chrono::high_resolution_clock::now();
     }
     std::cout << std::endl ;
 
-    /*if(algorithmChoice != 1 && algorithmChoice != 2 && algorithmChoice != 3)
-   {
-       std::cout << "Invalid input. Bye.";
-       return 0;
-   }
-   */
 
+    std::cout << "Specify the number of threads to use (e.g., 1, 2, 4): ";
+    if (!(std::cin >> numThreads) || numThreads < 1)
+    {
+        std::cout << "Invalid input. Using 1 thread as default." << std::endl;
+        numThreads = 1;
+    }
+    std::cout << "Number of threads set to: " << numThreads << std::endl;
+    
+    auto start = std::chrono::high_resolution_clock::now();
     initialState.setState(state);
     initialState.printState();
     std::cout << std::endl ;
     search(&initialState);
 
-    // clean up nodes
     for (Node* node: allNodes) {
         delete node;
     }
@@ -280,7 +309,6 @@ void search(Node *curr)
         std::cout << "The Total Cost Is: " << best->cost << std::endl;
         std::cout << std::endl; 
         best->printState();
-        waitForSeconds(0);
         std::cout << std::endl;
 
         bool isVisited = false;
